@@ -45,8 +45,8 @@ bool operator<(const edge &a, const edge &b) {
  * edges: array of edges.
  * c: constant for treshold function.
  */
-universe *segment_graph(int num_vertices, int num_edges, edge *edges, 
-			float c) { 
+universe *segment_graph(int num_vertices, int num_edges, edge *edges,
+			float c) {
   // sort edges by weight
   std::sort(edges, edges + num_edges);
 
@@ -61,7 +61,7 @@ universe *segment_graph(int num_vertices, int num_edges, edge *edges,
   // for each edge, in non-decreasing weight order...
   for (int i = 0; i < num_edges; i++) {
     edge *pedge = &edges[i];
-    
+
     // components conected by this edge
     int a = u->find(pedge->a);
     int b = u->find(pedge->b);

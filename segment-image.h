@@ -26,10 +26,10 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #include "segment-graph.h"
 
 // random color
-rgb random_rgb(){ 
+rgb random_rgb(){
   rgb c;
   double r;
-  
+
   c.r = (uchar)random();
   c.g = (uchar)random();
   c.b = (uchar)random();
@@ -65,7 +65,7 @@ image<rgb> *segment_image(image<rgb> *im, float sigma, float c, int min_size,
   image<float> *g = new image<float>(width, height);
   image<float> *b = new image<float>(width, height);
 
-  // smooth each color channel  
+  // smooth each color channel
   for (int y = 0; y < height; y++) {
     for (int x = 0; x < width; x++) {
       imRef(r, x, y) = imRef(im, x, y).r;
@@ -79,7 +79,7 @@ image<rgb> *segment_image(image<rgb> *im, float sigma, float c, int min_size,
   delete r;
   delete g;
   delete b;
- 
+
   // build graph
   edge *edges = new edge[width*height*4];
   int num = 0;
@@ -120,7 +120,7 @@ image<rgb> *segment_image(image<rgb> *im, float sigma, float c, int min_size,
 
   // segment
   universe *u = segment_graph(width*height, num, edges, c);
-  
+
   // post process small components
   for (int i = 0; i < num; i++) {
     int a = u->find(edges[i].a);
@@ -137,15 +137,15 @@ image<rgb> *segment_image(image<rgb> *im, float sigma, float c, int min_size,
   rgb *colors = new rgb[width*height];
   for (int i = 0; i < width*height; i++)
     colors[i] = random_rgb();
-  
+
   for (int y = 0; y < height; y++) {
     for (int x = 0; x < width; x++) {
       int comp = u->find(y * width + x);
       imRef(output, x, y) = colors[comp];
     }
-  }  
+  }
 
-  delete [] colors;  
+  delete [] colors;
   delete u;
 
   return output;

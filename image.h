@@ -37,26 +37,26 @@ class image {
 
   /* copy an image */
   image<T> *copy() const;
-  
+
   /* get the width of an image. */
   int width() const { return w; }
-  
+
   /* get the height of an image. */
   int height() const { return h; }
-  
+
   /* image data. */
   T *data;
-  
+
   /* row pointers. */
   T **access;
-  
+
  private:
   int w, h;
 };
 
 /* use imRef to access image data. */
 #define imRef(im, x, y) (im->access[y][x])
-  
+
 /* use imPtr to get pointer to image data. */
 #define imPtr(im, x, y) &(im->access[y][x])
 
@@ -66,18 +66,18 @@ image<T>::image(const int width, const int height, const bool init) {
   h = height;
   data = new T[w * h];  // allocate space for image data
   access = new T*[h];   // allocate space for row pointers
-  
+
   // initialize row pointers
   for (int i = 0; i < h; i++)
-    access[i] = data + (i * w);  
-  
+    access[i] = data + (i * w);
+
   if (init)
     memset(data, 0, w * h * sizeof(T));
 }
 
 template <class T>
 image<T>::~image() {
-  delete [] data; 
+  delete [] data;
   delete [] access;
 }
 
@@ -98,4 +98,4 @@ image<T> *image<T>::copy() const {
 }
 
 #endif
-  
+

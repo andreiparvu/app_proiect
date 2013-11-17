@@ -2,3 +2,4 @@ segment
 *.jpg
 *.ppm
 *.dSYM
+gmon.out

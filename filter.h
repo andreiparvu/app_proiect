@@ -44,18 +44,16 @@ static void normalize(std::vector<float> &mask) {
 }
 
 /* make filters */
-#define MAKE_FILTER(name, fun)                                \
-static std::vector<float> make_ ## name (float sigma) {       \
-  sigma = std::max(sigma, 0.01F);			      \
-  int len = (int)ceil(sigma * WIDTH) + 1;                     \
-  std::vector<float> mask(len);                               \
-  for (int i = 0; i < len; i++) {                             \
-    mask[i] = fun;                                            \
-  }                                                           \
-  return mask;                                                \
+static std::vector<float> make_fgauss (float sigma) {
+  sigma = std::max(sigma, 0.01F);
+  int len = (int)ceil(sigma * WIDTH) + 1;
+  std::vector<float> mask(len);
+#pragma omp parallel for default(shared)
+  for (int i = 0; i < len; i++) {
+    mask[i] = exp(-0.5*square(i/sigma));
+  }
+  return mask;
 }
-
-MAKE_FILTER(fgauss, exp(-0.5*square(i/sigma)));
 
 /* convolve image with gaussian filter */
 static image<float> *smooth(image<float> *src, float sigma) {

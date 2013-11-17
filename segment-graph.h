@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #define SEGMENT_GRAPH
 
 #include <algorithm>
+#include <parallel/algorithm>
 #include <cmath>
 #include "disjoint-set.h"
 
@@ -48,7 +49,7 @@ bool operator<(const edge &a, const edge &b) {
 universe *segment_graph(int num_vertices, int num_edges, edge *edges,
 			float c) {
   // sort edges by weight
-  std::sort(edges, edges + num_edges);
+  __gnu_parallel::sort(edges, edges + num_edges);
 
   // make a disjoint-set forest
   universe *u = new universe(num_vertices);
@@ -59,7 +60,7 @@ universe *segment_graph(int num_vertices, int num_edges, edge *edges,
     threshold[i] = THRESHOLD(1,c);
 
   // for each edge, in non-decreasing weight order...
-  for (int i = 0; i < num_edges; i++) {
+  for (int i = 0; i < num_edges; ++i) {
     edge *pedge = &edges[i];
 
     // components conected by this edge

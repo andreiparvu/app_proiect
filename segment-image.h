@@ -122,6 +122,7 @@ image<rgb> *segment_image(image<rgb> *im, float sigma, float c, int min_size,
   universe *u = segment_graph(width*height, num, edges, c);
 
   // post process small components
+#pragma omp parallel for
   for (int i = 0; i < num; i++) {
     int a = u->find(edges[i].a);
     int b = u->find(edges[i].b);
@@ -138,6 +139,7 @@ image<rgb> *segment_image(image<rgb> *im, float sigma, float c, int min_size,
   for (int i = 0; i < width*height; i++)
     colors[i] = random_rgb();
 
+#pragma omp parallel for default(shared)
   for (int y = 0; y < height; y++) {
     for (int x = 0; x < width; x++) {
       int comp = u->find(y * width + x);

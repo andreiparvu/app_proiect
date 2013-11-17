@@ -3,7 +3,7 @@ DBG    = -g
 OPT    = -O3
 CPP    = g++
 CFLAGS = $(DBG) $(OPT) $(INCDIR)
-LINK   = -lm 
+LINK   = -lm
 
 .cpp.o:
 	$(CPP) $(CFLAGS) -c $< -o $@
@@ -17,7 +17,7 @@ clean:
 	/bin/rm -f segment *.o
 
 clean-all: clean
-	/bin/rm -f *~ 
+	/bin/rm -f *~
 
 
 

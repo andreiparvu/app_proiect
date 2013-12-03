@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #include <algorithm>
 #include <parallel/algorithm>
 #include <cmath>
+#include <omp.h>
 #include "disjoint-set.h"
 
 // threshold function
@@ -34,6 +35,69 @@ typedef struct {
 
 bool operator<(const edge &a, const edge &b) {
   return a.w < b.w;
+}
+
+int omp_thread_count() {
+    int n = 0;
+    #pragma omp parallel reduction(+:n)
+    n += 1;
+    return n;
+}
+
+void merge(edge *v1, int len1, edge *v2, int len2) {
+  /* merge v1 and v2 into v1 -- they are in the same vector */
+  edge *v = (edge *) malloc(len1 * sizeof(edge));
+  memcpy(v, v1, len1 * sizeof(edge));
+  int i, j, k;
+  i = j = k = 0;
+
+  while (i < len1 && j < len2) {
+    if (v[i] < v2[j]) {
+      v1[k++] = v[i++];
+    } else {
+      v1[k++] = v2[j++];
+    }
+  }
+  while (i < len1) {
+    v1[k++] = v[i++];
+  }
+  while (j < len2) {
+    v1[k++] = v2[j++];
+  }
+  free(v);
+}
+
+void my_parallel_sort(edge *values, int len) {
+  int nthreads = omp_thread_count();
+  int each = len / nthreads;
+
+  // sort chunks
+#pragma omp parallel
+{
+  int rank = omp_get_thread_num();
+  edge *end = values + (rank + 1) * each;
+  if (rank == nthreads - 1) {
+    end = values + len;
+  }
+  std::sort(values + rank * each, end);
+}
+
+  // merge chunks together
+  int i;
+  int iterations = log2(nthreads);
+  int jobs = nthreads / 2;
+  for (i = 0; i < iterations; ++i) {
+#pragma omp parallel
+    {
+      int rank = omp_get_thread_num();
+      int each = len / jobs / 2;
+      if (rank % 2 == 0 && rank < jobs * 2) {
+	merge(values + rank * each, each, values + (rank + 1) * each, each);
+      }
+    }
+      jobs /= 2;
+  }
+
 }
 
 /*
@@ -49,6 +113,7 @@ bool operator<(const edge &a, const edge &b) {
 universe *segment_graph(int num_vertices, int num_edges, edge *edges,
 			float c) {
   // sort edges by weight
+  //my_parallel_sort(edges, num_edges);
   __gnu_parallel::sort(edges, edges + num_edges);
 
   // make a disjoint-set forest

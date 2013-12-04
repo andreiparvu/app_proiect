@@ -33,15 +33,22 @@ int main(int argc, char **argv) {
   float k = atof(argv[2]);
   int min_size = atoi(argv[3]);
 
+  fprintf(stderr, "%d\n", omp_get_num_threads());
+
   printf("loading input image.\n");
   image<rgb> *input = loadPPM(argv[4]);
+
+  clock_t t1 = clock();
 
   printf("processing\n");
   int num_ccs;
   image<rgb> *seg = segment_image(input, sigma, k, min_size, &num_ccs);
+
+  clock_t t2 = clock();
+
   savePPM(seg, argv[5]);
 
-  printf("got %d components\n", num_ccs);
+  printf("got %d components with %lf\n", num_ccs, (double)(t2 - t1) / CLOCKS_PER_SEC);
   printf("done! uff...thats hard work.\n");
 
   return 0;

@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #include <misc.h>
 #include <filter.h>
 #include "segment-graph.h"
+#include <omp.h>
 
 // random color
 rgb random_rgb(){
@@ -80,43 +81,71 @@ image<rgb> *segment_image(image<rgb> *im, float sigma, float c, int min_size,
   delete g;
   delete b;
 
+  fprintf(stderr, "%d %d\n", height, width);
   // build graph
   edge *edges = new edge[width*height*4];
+
+  int num_threads = 8;
+
+  int numt[16] = {0};
   int num = 0;
+  int chunk = height / 20;
+
+#pragma omp parallel for schedule(dynamic)
   for (int y = 0; y < height; y++) {
+    int tid = omp_get_thread_num();
+
+    int num = 0;
     for (int x = 0; x < width; x++) {
+      int base;
+
+      if (y == 0) {
+        base = 0;
+      } else {
+        base = (width - 1) * 3 + 1 + ((width - 1) * 4 + 1) * (y - 1);
+      }
+
       if (x < width-1) {
-	edges[num].a = y * width + x;
-	edges[num].b = y * width + (x+1);
-	edges[num].w = diff(smooth_r, smooth_g, smooth_b, x, y, x+1, y);
-	num++;
+        edges[base + num].a = y * width + x;
+        edges[base + num].b = y * width + (x+1);
+        edges[base + num].w = diff(smooth_r, smooth_g, smooth_b, x, y, x+1, y);
+        numt[tid]++;
+        num++;
       }
 
       if (y < height-1) {
-	edges[num].a = y * width + x;
-	edges[num].b = (y+1) * width + x;
-	edges[num].w = diff(smooth_r, smooth_g, smooth_b, x, y, x, y+1);
-	num++;
+        edges[base + num].a = y * width + x;
+        edges[base + num].b= (y+1) * width + x;
+        edges[base + num].w = diff(smooth_r, smooth_g, smooth_b, x, y, x, y+1);
+        numt[tid]++;
+        num++;
       }
 
       if ((x < width-1) && (y < height-1)) {
-	edges[num].a = y * width + x;
-	edges[num].b = (y+1) * width + (x+1);
-	edges[num].w = diff(smooth_r, smooth_g, smooth_b, x, y, x+1, y+1);
-	num++;
+        edges[base + num].a = y * width + x;
+        edges[base + num].b = (y+1) * width + (x+1);
+        edges[base + num].w = diff(smooth_r, smooth_g, smooth_b, x, y, x+1, y+1);
+        numt[tid]++;
+        num++;
       }
 
       if ((x < width-1) && (y > 0)) {
-	edges[num].a = y * width + x;
-	edges[num].b = (y-1) * width + (x+1);
-	edges[num].w = diff(smooth_r, smooth_g, smooth_b, x, y, x+1, y-1);
-	num++;
+        edges[base + num].a = y * width + x;
+        edges[base + num].b = (y-1) * width + (x+1);
+        edges[base + num].w = diff(smooth_r, smooth_g, smooth_b, x, y, x+1, y-1);
+        numt[tid]++;
+        num++;
       }
     }
   }
+
   delete smooth_r;
   delete smooth_g;
   delete smooth_b;
+
+  for (int i = 0; i < 16; i++) {
+    num += numt[i];
+  }
 
   // segment
   universe *u = segment_graph(width*height, num, edges, c);

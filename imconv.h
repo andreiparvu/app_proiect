@@ -38,9 +38,9 @@ static image<uchar> *imageRGBtoGRAY(image<rgb> *input) {
   for (int y = 0; y < height; y++) {
     for (int x = 0; x < width; x++) {
       imRef(output, x, y) = (uchar)
-	(imRef(input, x, y).r * RED_WEIGHT +
-	 imRef(input, x, y).g * GREEN_WEIGHT +
-	 imRef(input, x, y).b * BLUE_WEIGHT);
+        (imRef(input, x, y).r * RED_WEIGHT +
+         imRef(input, x, y).g * GREEN_WEIGHT +
+         imRef(input, x, y).b * BLUE_WEIGHT);
     }
   }
   return output;

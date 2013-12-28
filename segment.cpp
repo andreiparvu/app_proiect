@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #include <image.h>
 #include <misc.h>
 #include <pnmfile.h>
+#include <mpi.h>
 #include "segment-image.h"
 
 int main(int argc, char **argv) {
@@ -28,22 +29,30 @@ int main(int argc, char **argv) {
     fprintf(stderr, "usage: %s sigma k min input(ppm) output(ppm)\n", argv[0]);
     return 1;
   }
+  MPI_Init(NULL, NULL);
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
   float sigma = atof(argv[1]);
   float k = atof(argv[2]);
   int min_size = atoi(argv[3]);
 
-  printf("loading input image.\n");
-  image<rgb> *input = loadPPM(argv[4]);
+  if (rank == 0) {
+    printf("loading input image.\n");
+    image<rgb> *input = loadPPM(argv[4]);
 
-  printf("processing\n");
-  int num_ccs;
-  image<rgb> *seg = segment_image(input, sigma, k, min_size, &num_ccs);
-  savePPM(seg, argv[5]);
+    printf("processing\n");
+    int num_ccs;
+    image<rgb> *seg = segment_image(input, sigma, k, min_size, &num_ccs);
+    savePPM(seg, argv[5]);
 
-  printf("got %d components\n", num_ccs);
-  printf("done! uff...thats hard work.\n");
+    printf("got %d components\n", num_ccs);
+    printf("done! uff...thats hard work.\n");
+  } else {
+    image<rgb> *seg = segment_image(NULL, sigma, k, min_size, NULL);
+  }
 
+  MPI_Finalize();
   return 0;
 }
 

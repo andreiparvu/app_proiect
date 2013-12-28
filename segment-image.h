@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #include <image.h>
 #include <misc.h>
 #include <filter.h>
+#include <mpi.h>
 #include "segment-graph.h"
 
 // random color
@@ -58,97 +59,160 @@ static inline float diff(image<float> *r, image<float> *g, image<float> *b,
  */
 image<rgb> *segment_image(image<rgb> *im, float sigma, float c, int min_size,
 			  int *num_ccs) {
-  int width = im->width();
-  int height = im->height();
+  int width;
+  int height;
 
-  image<float> *r = new image<float>(width, height);
-  image<float> *g = new image<float>(width, height);
-  image<float> *b = new image<float>(width, height);
+  int rank;
+  float *data = NULL;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  // smooth each color channel
-  for (int y = 0; y < height; y++) {
-    for (int x = 0; x < width; x++) {
-      imRef(r, x, y) = imRef(im, x, y).r;
-      imRef(g, x, y) = imRef(im, x, y).g;
-      imRef(b, x, y) = imRef(im, x, y).b;
-    }
-  }
-  image<float> *smooth_r = smooth(r, sigma);
-  image<float> *smooth_g = smooth(g, sigma);
-  image<float> *smooth_b = smooth(b, sigma);
-  delete r;
-  delete g;
-  delete b;
-
-  // build graph
-  edge *edges = new edge[width*height*4];
-  int num = 0;
-  for (int y = 0; y < height; y++) {
-    for (int x = 0; x < width; x++) {
-      if (x < width-1) {
-	edges[num].a = y * width + x;
-	edges[num].b = y * width + (x+1);
-	edges[num].w = diff(smooth_r, smooth_g, smooth_b, x, y, x+1, y);
-	num++;
-      }
-
-      if (y < height-1) {
-	edges[num].a = y * width + x;
-	edges[num].b = (y+1) * width + x;
-	edges[num].w = diff(smooth_r, smooth_g, smooth_b, x, y, x, y+1);
-	num++;
-      }
-
-      if ((x < width-1) && (y < height-1)) {
-	edges[num].a = y * width + x;
-	edges[num].b = (y+1) * width + (x+1);
-	edges[num].w = diff(smooth_r, smooth_g, smooth_b, x, y, x+1, y+1);
-	num++;
-      }
-
-      if ((x < width-1) && (y > 0)) {
-	edges[num].a = y * width + x;
-	edges[num].b = (y-1) * width + (x+1);
-	edges[num].w = diff(smooth_r, smooth_g, smooth_b, x, y, x+1, y-1);
-	num++;
+  if (rank == 0) {
+    width = im->width();
+    height = im->height();
+    data = (float *) malloc(width * height * sizeof(float));
+    MPI_Bcast(&width, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&height, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+	data[y * width + x] = imRef(im, x, y).r;
       }
     }
-  }
-  delete smooth_r;
-  delete smooth_g;
-  delete smooth_b;
+    MPI_Send(data, width * height, MPI_FLOAT, 1, 1, MPI_COMM_WORLD);
 
-  // segment
-  universe *u = segment_graph(width*height, num, edges, c);
-
-  // post process small components
-  for (int i = 0; i < num; i++) {
-    int a = u->find(edges[i].a);
-    int b = u->find(edges[i].b);
-    if ((a != b) && ((u->size(a) < min_size) || (u->size(b) < min_size)))
-      u->join(a, b);
-  }
-  delete [] edges;
-  *num_ccs = u->num_sets();
-
-  image<rgb> *output = new image<rgb>(width, height);
-
-  // pick random colors for each component
-  rgb *colors = new rgb[width*height];
-  for (int i = 0; i < width*height; i++)
-    colors[i] = random_rgb();
-
-  for (int y = 0; y < height; y++) {
-    for (int x = 0; x < width; x++) {
-      int comp = u->find(y * width + x);
-      imRef(output, x, y) = colors[comp];
+    float *data = (float *) malloc(width * height * sizeof(float));
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+	data[y * width + x] = imRef(im, x, y).g;
+      }
     }
+    MPI_Send(data, width * height, MPI_FLOAT, 2, 2, MPI_COMM_WORLD);
+
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+	data[y * width + x] = imRef(im, x, y).b;
+      }
+    }
+    MPI_Send(data, width * height, MPI_FLOAT, 3, 3, MPI_COMM_WORLD);
+
+  } else {
+    MPI_Bcast(&width, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&height, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    data = (float *) malloc(width * height * sizeof(float));
+    image<float> *to_smooth = new image<float>(width, height);
+    MPI_Status status;
+    MPI_Recv(data, width * height, MPI_FLOAT, 0, rank, MPI_COMM_WORLD, &status);
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+	imRef(to_smooth, x, y) = data[y * width + x];
+      }
+    }
+    image<float> *s = smooth(to_smooth, sigma);
+
+    float val;
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+	data[y * width + x] = imRef(s, x, y);
+      }
+    }
+    MPI_Send(data, width * height, MPI_FLOAT, 0, rank, MPI_COMM_WORLD);
+    return im;
   }
 
-  delete [] colors;
-  delete u;
+  if (rank == 0) {
+    image<float> *smooth_r = new image<float>(width, height);
+    image<float> *smooth_g = new image<float>(width, height);
+    image<float> *smooth_b = new image<float>(width, height);
+    MPI_Status status;
+    MPI_Recv(data, width * height, MPI_FLOAT, 1, 1, MPI_COMM_WORLD, &status);
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+	imRef(smooth_r, x, y) = data[y * width + x];
+      }
+    }
+    MPI_Recv(data, width * height, MPI_FLOAT, 2, 2, MPI_COMM_WORLD, &status);
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+	imRef(smooth_g, x, y) = data[y * width + x];
+      }
+    }
+    MPI_Recv(data, width * height, MPI_FLOAT, 3, 3, MPI_COMM_WORLD, &status);
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+	imRef(smooth_b, x, y) = data[y * width + x];
+      }
+    }
 
-  return output;
+
+    // build graph
+    edge *edges = new edge[width*height*4];
+    int num = 0;
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+	if (x < width-1) {
+	  edges[num].a = y * width + x;
+	  edges[num].b = y * width + (x+1);
+	  edges[num].w = diff(smooth_r, smooth_g, smooth_b, x, y, x+1, y);
+	  num++;
+	}
+
+	if (y < height-1) {
+	  edges[num].a = y * width + x;
+	  edges[num].b = (y+1) * width + x;
+	  edges[num].w = diff(smooth_r, smooth_g, smooth_b, x, y, x, y+1);
+	  num++;
+	}
+
+	if ((x < width-1) && (y < height-1)) {
+	  edges[num].a = y * width + x;
+	  edges[num].b = (y+1) * width + (x+1);
+	  edges[num].w = diff(smooth_r, smooth_g, smooth_b, x, y, x+1, y+1);
+	  num++;
+	}
+
+	if ((x < width-1) && (y > 0)) {
+	  edges[num].a = y * width + x;
+	  edges[num].b = (y-1) * width + (x+1);
+	  edges[num].w = diff(smooth_r, smooth_g, smooth_b, x, y, x+1, y-1);
+	  num++;
+	}
+      }
+    }
+    delete smooth_r;
+    delete smooth_g;
+    delete smooth_b;
+
+    // segment
+    universe *u = segment_graph(width*height, num, edges, c);
+
+    // post process small components
+    for (int i = 0; i < num; i++) {
+      int a = u->find(edges[i].a);
+      int b = u->find(edges[i].b);
+      if ((a != b) && ((u->size(a) < min_size) || (u->size(b) < min_size)))
+	u->join(a, b);
+    }
+    delete [] edges;
+    *num_ccs = u->num_sets();
+
+    image<rgb> *output = new image<rgb>(width, height);
+
+    // pick random colors for each component
+    rgb *colors = new rgb[width*height];
+    for (int i = 0; i < width*height; i++)
+      colors[i] = random_rgb();
+
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+	int comp = u->find(y * width + x);
+	imRef(output, x, y) = colors[comp];
+      }
+    }
+
+    delete [] colors;
+    delete u;
+
+    return output;
+  }
 }
 
 #endif
